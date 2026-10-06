@@ -21946,23 +21946,28 @@ var __webpack_modules__ = {
                 this.code = code;
             }
         }
+        const SUPPORTED_DESCRIPTOR_VERSIONS = new Set([
+            1,
+            2,
+            3
+        ]);
+        function pickEntry(entries) {
+            const list = Object.values(entries ?? {});
+            if (list.length === 0) {
+                throw new GrokBotGatewaySessionError("EMPTY_ENTRIES", "Grok Bot gateway descriptor has no saved gateway entries.");
+            }
+            if (list.length === 1) return list[0];
+            const dated = list.filter((e)=>Number.isFinite(e?.savedAtMs));
+            if (dated.length !== list.length) {
+                throw new GrokBotGatewaySessionError("AMBIGUOUS_ENTRIES", "Grok Bot gateway descriptor has multiple saved gateway entries and no active entry selection.");
+            }
+            return dated.reduce((a, b)=>b.savedAtMs > a.savedAtMs ? b : a);
+        }
         function encryptedPayload(wrapped) {
-            if (wrapped.version != null && wrapped.version !== 1 && wrapped.version !== 2) {
+            if (wrapped.version != null && !SUPPORTED_DESCRIPTOR_VERSIONS.has(wrapped.version)) {
                 throw new GrokBotGatewaySessionError("UNSUPPORTED_VERSION", `Unsupported Grok Bot gateway descriptor version ${wrapped.version}.`);
             }
-            let encrypted;
-            if (wrapped.version === 2) {
-                const entries = Object.values(wrapped.entries ?? {});
-                if (entries.length === 0) {
-                    throw new GrokBotGatewaySessionError("EMPTY_ENTRIES", "Grok Bot gateway descriptor has no saved gateway entries.");
-                }
-                if (entries.length > 1) {
-                    throw new GrokBotGatewaySessionError("AMBIGUOUS_ENTRIES", "Grok Bot gateway descriptor has multiple saved gateway entries and no active entry selection.");
-                }
-                encrypted = entries[0]?.encrypted;
-            } else {
-                encrypted = wrapped.encrypted;
-            }
+            const encrypted = wrapped.version >= 2 ? pickEntry(wrapped.entries)?.encrypted : wrapped.encrypted;
             if (typeof encrypted !== "string" || !encrypted) {
                 throw new GrokBotGatewaySessionError("MISSING_ENCRYPTED_PAYLOAD", "Grok Bot gateway descriptor is missing an encrypted payload.");
             }
@@ -28135,9 +28140,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         });
     },
     "./package.json" (module) {
-        module.exports = {
-            "rE": "0.12.4"
-        };
+        module.exports = JSON.parse('{"rE":"0.12.4-nick.1"}');
     }
 };
 var __webpack_module_cache__ = {};

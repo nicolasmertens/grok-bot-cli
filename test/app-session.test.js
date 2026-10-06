@@ -135,12 +135,47 @@ test("rejects a version 2 descriptor with no entries", () => {
   );
 });
 
+test("picks the most recently saved entry when several exist", () => {
+  const home = writeWrappedDescriptor({
+    version: 3,
+    entries: {
+      older: { encrypted: ENCRYPTED_INCOMPLETE_DESCRIPTOR, savedAtMs: 1 },
+      newer: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 2 },
+    },
+  });
+
+  const session = loadGrokBotGatewaySession({
+    platform: "darwin",
+    home,
+    getKeychainPassword: () => "demo-password",
+  });
+  assert.equal(session.gatewayUrl, "https://box.example");
+});
+
+test("loads a version 3 descriptor", () => {
+  const home = writeWrappedDescriptor({
+    version: 3,
+    entries: { primary: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 1_791_320_229_049 } },
+  });
+
+  const session = loadGrokBotGatewaySession({
+    platform: "darwin",
+    home,
+    getKeychainPassword: () => "demo-password",
+  });
+  assert.deepEqual(session, {
+    gatewayUrl: "https://box.example",
+    gatewayToken: "gateway-token",
+    headers: { "x-anyrun-network-token": "route-token" },
+  });
+});
+
 test("rejects a version 2 descriptor with ambiguous entries", () => {
   const home = writeWrappedDescriptor({
     version: 2,
     entries: {
-      first: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 1 },
-      second: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 2 },
+      first: { encrypted: ENCRYPTED_DESCRIPTOR },
+      second: { encrypted: ENCRYPTED_DESCRIPTOR },
     },
   });
 
@@ -182,7 +217,7 @@ test("rejects a gateway entry without an encrypted payload", () => {
 
 test("rejects an unsupported gateway descriptor version", () => {
   const home = writeWrappedDescriptor({
-    version: 3,
+    version: 4,
     encrypted: ENCRYPTED_DESCRIPTOR,
   });
 
@@ -195,7 +230,7 @@ test("rejects an unsupported gateway descriptor version", () => {
     (error) => {
       assert.equal(error.name, "GrokBotGatewaySessionError");
       assert.equal(error.code, "UNSUPPORTED_VERSION");
-      assert.match(error.message, /unsupported .*gateway descriptor version 3/i);
+      assert.match(error.message, /unsupported .*gateway descriptor version 4/i);
       return true;
     },
   );
