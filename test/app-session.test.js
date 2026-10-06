@@ -117,6 +117,44 @@ test("loads a version 2 Grok Bot gateway entry", () => {
   });
 });
 
+test("loads a version 3 descriptor", () => {
+  const home = writeWrappedDescriptor({
+    version: 3,
+    entries: { primary: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 1_791_320_229_049 } },
+  });
+
+  const session = loadGrokBotGatewaySession({
+    platform: "darwin",
+    home,
+    getKeychainPassword: () => "demo-password",
+  });
+
+  assert.deepEqual(session, {
+    gatewayUrl: "https://box.example",
+    gatewayToken: "gateway-token",
+    headers: { "x-anyrun-network-token": "route-token" },
+  });
+});
+
+test("rejects a version 3 descriptor with ambiguous entries", () => {
+  const home = writeWrappedDescriptor({
+    version: 3,
+    entries: {
+      first: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 1 },
+      second: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 2 },
+    },
+  });
+
+  assert.throws(
+    () => loadGrokBotGatewaySession({
+      platform: "darwin",
+      home,
+      getKeychainPassword: () => "demo-password",
+    }),
+    (error) => error.code === "AMBIGUOUS_ENTRIES",
+  );
+});
+
 test("rejects a version 2 descriptor with no entries", () => {
   const home = writeWrappedDescriptor({ version: 2, entries: {} });
 
@@ -135,47 +173,12 @@ test("rejects a version 2 descriptor with no entries", () => {
   );
 });
 
-test("picks the most recently saved entry when several exist", () => {
-  const home = writeWrappedDescriptor({
-    version: 3,
-    entries: {
-      older: { encrypted: ENCRYPTED_INCOMPLETE_DESCRIPTOR, savedAtMs: 1 },
-      newer: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 2 },
-    },
-  });
-
-  const session = loadGrokBotGatewaySession({
-    platform: "darwin",
-    home,
-    getKeychainPassword: () => "demo-password",
-  });
-  assert.equal(session.gatewayUrl, "https://box.example");
-});
-
-test("loads a version 3 descriptor", () => {
-  const home = writeWrappedDescriptor({
-    version: 3,
-    entries: { primary: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 1_791_320_229_049 } },
-  });
-
-  const session = loadGrokBotGatewaySession({
-    platform: "darwin",
-    home,
-    getKeychainPassword: () => "demo-password",
-  });
-  assert.deepEqual(session, {
-    gatewayUrl: "https://box.example",
-    gatewayToken: "gateway-token",
-    headers: { "x-anyrun-network-token": "route-token" },
-  });
-});
-
 test("rejects a version 2 descriptor with ambiguous entries", () => {
   const home = writeWrappedDescriptor({
     version: 2,
     entries: {
-      first: { encrypted: ENCRYPTED_DESCRIPTOR },
-      second: { encrypted: ENCRYPTED_DESCRIPTOR },
+      first: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 1 },
+      second: { encrypted: ENCRYPTED_DESCRIPTOR, savedAtMs: 2 },
     },
   });
 

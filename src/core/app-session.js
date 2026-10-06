@@ -21,38 +21,33 @@ class GrokBotGatewaySessionError extends Error {
   }
 }
 
-const SUPPORTED_DESCRIPTOR_VERSIONS = new Set([1, 2, 3]);
-
-// v2 and v3 keep saved gateways under `entries`; v3 adds `savedAtMs` per entry
-// (and a vncProxy block inside the encrypted payload, which we ignore).
-// With several entries, the most recently saved one is the live gateway.
-function pickEntry(entries) {
-  const list = Object.values(entries ?? {});
-  if (list.length === 0) {
-    throw new GrokBotGatewaySessionError(
-      "EMPTY_ENTRIES",
-      "Grok Bot gateway descriptor has no saved gateway entries.",
-    );
-  }
-  if (list.length === 1) return list[0];
-  const dated = list.filter((e) => Number.isFinite(e?.savedAtMs));
-  if (dated.length !== list.length) {
-    throw new GrokBotGatewaySessionError(
-      "AMBIGUOUS_ENTRIES",
-      "Grok Bot gateway descriptor has multiple saved gateway entries and no active entry selection.",
-    );
-  }
-  return dated.reduce((a, b) => (b.savedAtMs > a.savedAtMs ? b : a));
-}
-
 function encryptedPayload(wrapped) {
-  if (wrapped.version != null && !SUPPORTED_DESCRIPTOR_VERSIONS.has(wrapped.version)) {
+  if (wrapped.version != null && wrapped.version !== 1 && wrapped.version !== 2 && wrapped.version !== 3) {
     throw new GrokBotGatewaySessionError(
       "UNSUPPORTED_VERSION",
       `Unsupported Grok Bot gateway descriptor version ${wrapped.version}.`,
     );
   }
-  const encrypted = wrapped.version >= 2 ? pickEntry(wrapped.entries)?.encrypted : wrapped.encrypted;
+  let encrypted;
+  // v3 keeps the v2 `entries` layout (adds `savedAtMs`; the payload adds `vncProxy`, unused here).
+  if (wrapped.version === 2 || wrapped.version === 3) {
+    const entries = Object.values(wrapped.entries ?? {});
+    if (entries.length === 0) {
+      throw new GrokBotGatewaySessionError(
+        "EMPTY_ENTRIES",
+        "Grok Bot gateway descriptor has no saved gateway entries.",
+      );
+    }
+    if (entries.length > 1) {
+      throw new GrokBotGatewaySessionError(
+        "AMBIGUOUS_ENTRIES",
+        "Grok Bot gateway descriptor has multiple saved gateway entries and no active entry selection.",
+      );
+    }
+    encrypted = entries[0]?.encrypted;
+  } else {
+    encrypted = wrapped.encrypted;
+  }
   if (typeof encrypted !== "string" || !encrypted) {
     throw new GrokBotGatewaySessionError(
       "MISSING_ENCRYPTED_PAYLOAD",
